@@ -38,7 +38,10 @@
 #include <circle/i2cmaster.h>
 #include <circle/multicore.h>
 #include <circle/soundbasedevice.h>
+#include <circle/spinlock.h>
+#include "common.h"
 #include "effect_platervbstereo.h"
+#include "mixer.h"
 
 class CMiniDexed
 #ifdef ARM_ALLOW_MULTI_CORE
@@ -74,7 +77,44 @@ public:
 	void setPitchbend (int16_t value, unsigned nTG);
 	void ControllersRefresh (unsigned nTG);
 
+	enum TParameter
+	{
+		ParameterCompressorEnable,
+		ParameterReverbEnable,
+		ParameterReverbSize,
+		ParameterReverbHighDamp,
+		ParameterReverbLowDamp,
+		ParameterReverbLowPass,
+		ParameterReverbDiffusion,
+		ParameterReverbLevel,
+		ParameterUnknown
+	};
+
+	void SetParameter (TParameter Parameter, int nValue);
+	int GetParameter (TParameter Parameter);
+
+	enum TTGParameter
+	{
+		TGParameterVoiceBank,
+		TGParameterProgram,
+		TGParameterVolume,
+		TGParameterPan,
+		TGParameterMasterTune,
+		TGParameterMIDIChannel,
+		TGParameterUnknown
+	};
+
+	void SetTGParameter (TTGParameter Parameter, int nValue, unsigned nTG);
+	int GetTGParameter (TTGParameter Parameter, unsigned nTG);
+
+	// access (global or OP-related) parameter of the active voice of a TG
+	static const unsigned NoOP = 6;		// for global parameters
+	void SetVoiceParameter (uint8_t uchOffset, uint8_t uchValue, unsigned nOP, unsigned nTG);
+	uint8_t GetVoiceParameter (uint8_t uchOffset, unsigned nOP, unsigned nTG);
+
 	std::string GetVoiceName (unsigned nTG);
+
+	bool SavePerformance (void);
 
 private:
 	int16_t ApplyNoteLimits (int16_t pitch, unsigned nTG);	// returns < 0 to ignore note
@@ -95,9 +135,17 @@ private:
 private:
 	CConfig *m_pConfig;
 
+	int m_nParameter[ParameterUnknown];			// global (non-TG) parameters
+
 	CDexedAdapter *m_pTG[CConfig::ToneGenerators];
+
 	unsigned m_nVoiceBankID[CConfig::ToneGenerators];
+	unsigned m_nProgram[CConfig::ToneGenerators];
+	unsigned m_nVolume[CConfig::ToneGenerators];
 	unsigned m_nPan[CConfig::ToneGenerators];
+	float32_t m_fPan[CConfig::ToneGenerators];
+	int m_nMasterTune[CConfig::ToneGenerators];
+	unsigned m_nMIDIChannel[CConfig::ToneGenerators];
 
 	unsigned m_nNoteLimitLow[CConfig::ToneGenerators];
 	unsigned m_nNoteLimitHigh[CConfig::ToneGenerators];
@@ -120,13 +168,17 @@ private:
 	unsigned m_nActiveTGsLog2;
 	volatile TCoreStatus m_CoreStatus[CORES];
 	volatile unsigned m_nFramesToProcess;
-	int16_t m_OutputLevel[CConfig::ToneGenerators][CConfig::MaxChunkSize];
+	float32_t m_OutputLevel[CConfig::ToneGenerators][CConfig::MaxChunkSize];
 #endif
 
 	CPerformanceTimer m_GetChunkTimer;
 	bool m_bProfileEnabled;
 
 	AudioEffectPlateReverb* reverb;
+	AudioStereoMixer<8>* tg_mixer;
+
+	CSpinLock m_PanoramaSpinLock;
+	CSpinLock m_ReverbSpinLock;
 };
 
 #endif
