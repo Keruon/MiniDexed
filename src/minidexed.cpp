@@ -58,13 +58,17 @@ CMiniDexed::CMiniDexed (CConfig *pConfig, CInterruptSystem *pInterrupt,
 		m_nProgram[i] = 0;
 		m_nVolume[i] = 100;
 		m_nPan[i] = 64;
-		m_fPan[i] = 0.5f;
 		m_nMasterTune[i] = 0;
+		m_nCutoff[i] = 99;
+		m_nResonance[i] = 0;
 		m_nMIDIChannel[i] = CMIDIDevice::Disabled;
 
 		m_nNoteLimitLow[i] = 0;
 		m_nNoteLimitHigh[i] = 127;
 		m_nNoteShift[i] = 0;
+
+		m_nReverbSend[i] = 0;
+		m_uchOPMask[i] = 0b111111;	// All operators on
 
 		m_pTG[i] = new CDexedAdapter (CConfig::MaxNotes, pConfig->GetSampleRate ());
 		assert (m_pTG[i]);
@@ -114,7 +118,12 @@ CMiniDexed::CMiniDexed (CConfig *pConfig, CInterruptSystem *pInterrupt,
 	}
 #endif
 
+	// BEGIN setup tg_mixer
+	tg_mixer = new AudioStereoMixer<CConfig::ToneGenerators>(pConfig->GetChunkSize()/2);
+	// END setup tgmixer
+
 	// BEGIN setup reverb
+	reverb_send_mixer = new AudioStereoMixer<CConfig::ToneGenerators>(pConfig->GetChunkSize()/2);
 	reverb = new AudioEffectPlateReverb(pConfig->GetSampleRate());
 	SetParameter (ParameterReverbEnable, 1);
 	SetParameter (ParameterReverbSize, 70);
@@ -122,7 +131,7 @@ CMiniDexed::CMiniDexed (CConfig *pConfig, CInterruptSystem *pInterrupt,
 	SetParameter (ParameterReverbLowDamp, 50);
 	SetParameter (ParameterReverbLowPass, 30);
 	SetParameter (ParameterReverbDiffusion, 65);
-	SetParameter (ParameterReverbLevel, 80);
+	SetParameter (ParameterReverbLevel, 99);
 	// END setup reverb
 
 	SetParameter (ParameterCompressorEnable, 1);
@@ -158,6 +167,11 @@ bool CMiniDexed::Initialize (void)
 
 		m_pTG[i]->setPBController (12, 1);
 		m_pTG[i]->setMWController (99, 7, 0);
+
+		tg_mixer->pan(i,mapfloat(m_nPan[i],0,127,0.0f,1.0f));
+		tg_mixer->gain(i,1.0f);
+		reverb_send_mixer->pan(i,mapfloat(m_nPan[i],0,127,0.0f,1.0f));
+		reverb_send_mixer->gain(i,mapfloat(m_nReverbSend[i],0,99,0.0f,1.0f));
 	}
 
 	if (m_PerformanceConfig.Load ())
@@ -170,10 +184,14 @@ bool CMiniDexed::Initialize (void)
 			SetVolume (m_PerformanceConfig.GetVolume (nTG), nTG);
 			SetPan (m_PerformanceConfig.GetPan (nTG), nTG);
 			SetMasterTune (m_PerformanceConfig.GetDetune (nTG), nTG);
+			SetCutoff (m_PerformanceConfig.GetCutoff (nTG), nTG);
+			SetResonance (m_PerformanceConfig.GetResonance (nTG), nTG);
 
 			m_nNoteLimitLow[nTG] = m_PerformanceConfig.GetNoteLimitLow (nTG);
 			m_nNoteLimitHigh[nTG] = m_PerformanceConfig.GetNoteLimitHigh (nTG);
 			m_nNoteShift[nTG] = m_PerformanceConfig.GetNoteShift (nTG);
+
+			SetReverbSend (m_PerformanceConfig.GetReverbSend (nTG), nTG);
 		}
 
 		// Effects
@@ -314,10 +332,7 @@ CSysExFileLoader *CMiniDexed::GetSysExFileLoader (void)
 
 void CMiniDexed::BankSelectLSB (unsigned nBankLSB, unsigned nTG)
 {
-	if (nBankLSB > 127)
-	{
-		return;
-	}
+	nBankLSB=constrain((int)nBankLSB,0,127);
 
 	assert (nTG < CConfig::ToneGenerators);
 	m_nVoiceBankID[nTG] = nBankLSB;
@@ -327,10 +342,7 @@ void CMiniDexed::BankSelectLSB (unsigned nBankLSB, unsigned nTG)
 
 void CMiniDexed::ProgramChange (unsigned nProgram, unsigned nTG)
 {
-	if (nProgram > 31)
-	{
-		return;
-	}
+	nProgram=constrain((int)nProgram,0,31);
 
 	assert (nTG < CConfig::ToneGenerators);
 	m_nProgram[nTG] = nProgram;
@@ -346,46 +358,77 @@ void CMiniDexed::ProgramChange (unsigned nProgram, unsigned nTG)
 
 void CMiniDexed::SetVolume (unsigned nVolume, unsigned nTG)
 {
-	if (nVolume > 127)
-	{
-		return;
-	}
+	nVolume=constrain((int)nVolume,0,127);
 
 	assert (nTG < CConfig::ToneGenerators);
 	m_nVolume[nTG] = nVolume;
 
 	assert (m_pTG[nTG]);
-	m_pTG[nTG]->setGain (nVolume / 127.0);
+	m_pTG[nTG]->setGain (nVolume / 127.0f);
 
 	m_UI.ParameterChanged ();
 }
 
 void CMiniDexed::SetPan (unsigned nPan, unsigned nTG)
 {
-	if (nPan > 127)
-	{
-		return;
-	}
+	nPan=constrain((int)nPan,0,127);
 
 	assert (nTG < CConfig::ToneGenerators);
 	m_nPan[nTG] = nPan;
-	m_fPan[nTG]=mapfloat(nPan,0,127,0.0,1.0);
+	
+	tg_mixer->pan(nTG,mapfloat(nPan,0,127,0.0f,1.0f));
+	reverb_send_mixer->pan(nTG,mapfloat(nPan,0,127,0.0f,1.0f));
+
+	m_UI.ParameterChanged ();
+}
+
+void CMiniDexed::SetReverbSend (unsigned nReverbSend, unsigned nTG)
+{
+	nReverbSend=constrain((int)nReverbSend,0,99);
+
+	assert (nTG < CConfig::ToneGenerators);
+	m_nReverbSend[nTG] = nReverbSend;
+
+	reverb_send_mixer->gain(nTG,mapfloat(nReverbSend,0,99,0.0f,1.0f));
 	
 	m_UI.ParameterChanged ();
 }
 
 void CMiniDexed::SetMasterTune (int nMasterTune, unsigned nTG)
 {
-	if (!(-99 <= nMasterTune && nMasterTune <= 99))
-	{
-		return;
-	}
+	nMasterTune=constrain((int)nMasterTune,-99,99);
 
 	assert (nTG < CConfig::ToneGenerators);
 	m_nMasterTune[nTG] = nMasterTune;
 
 	assert (m_pTG[nTG]);
 	m_pTG[nTG]->setMasterTune ((int8_t) nMasterTune);
+
+	m_UI.ParameterChanged ();
+}
+
+void CMiniDexed::SetCutoff (int nCutoff, unsigned nTG)
+{
+	nCutoff = constrain (nCutoff, 0, 99);
+
+	assert (nTG < CConfig::ToneGenerators);
+	m_nCutoff[nTG] = nCutoff;
+
+	assert (m_pTG[nTG]);
+	m_pTG[nTG]->setFilterCutoff (mapfloat (nCutoff, 0, 99, 0.0f, 1.0f));
+
+	m_UI.ParameterChanged ();
+}
+
+void CMiniDexed::SetResonance (int nResonance, unsigned nTG)
+{
+	nResonance = constrain (nResonance, 0, 99);
+
+	assert (nTG < CConfig::ToneGenerators);
+	m_nResonance[nTG] = nResonance;
+
+	assert (m_pTG[nTG]);
+	m_pTG[nTG]->setFilterResonance (mapfloat (nResonance, 0, 99, 0.0f, 1.0f));
 
 	m_UI.ParameterChanged ();
 }
@@ -478,6 +521,24 @@ void CMiniDexed::setSustain(bool sustain, unsigned nTG)
 	m_pTG[nTG]->setSustain (sustain);
 }
 
+void CMiniDexed::panic(uint8_t value, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	assert (m_pTG[nTG]);
+	if (value == 0) {
+		m_pTG[nTG]->panic ();
+	}
+}
+
+void CMiniDexed::notesOff(uint8_t value, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	assert (m_pTG[nTG]);
+	if (value == 0) {
+		m_pTG[nTG]->notesOff ();
+	}
+}
+
 void CMiniDexed::setModWheel (uint8_t value, unsigned nTG)
 {
 	assert (nTG < CConfig::ToneGenerators);
@@ -517,44 +578,51 @@ void CMiniDexed::SetParameter (TParameter Parameter, int nValue)
 		break;
 
 	case ParameterReverbEnable:
+		nValue=constrain((int)nValue,0,1);
 		m_ReverbSpinLock.Acquire ();
 		reverb->set_bypass (!nValue);
 		m_ReverbSpinLock.Release ();
 		break;
 
 	case ParameterReverbSize:
+		nValue=constrain((int)nValue,0,99);
 		m_ReverbSpinLock.Acquire ();
-		reverb->size (nValue / 99.0);
+		reverb->size (nValue / 99.0f);
 		m_ReverbSpinLock.Release ();
 		break;
 
 	case ParameterReverbHighDamp:
+		nValue=constrain((int)nValue,0,99);
 		m_ReverbSpinLock.Acquire ();
-		reverb->hidamp (nValue / 99.0);
+		reverb->hidamp (nValue / 99.0f);
 		m_ReverbSpinLock.Release ();
 		break;
 
 	case ParameterReverbLowDamp:
+		nValue=constrain((int)nValue,0,99);
 		m_ReverbSpinLock.Acquire ();
-		reverb->lodamp (nValue / 99.0);
+		reverb->lodamp (nValue / 99.0f);
 		m_ReverbSpinLock.Release ();
 		break;
 
 	case ParameterReverbLowPass:
+		nValue=constrain((int)nValue,0,99);
 		m_ReverbSpinLock.Acquire ();
-		reverb->lowpass (nValue / 99.0);
+		reverb->lowpass (nValue / 99.0f);
 		m_ReverbSpinLock.Release ();
 		break;
 
 	case ParameterReverbDiffusion:
+		nValue=constrain((int)nValue,0,99);
 		m_ReverbSpinLock.Acquire ();
-		reverb->diffusion (nValue / 99.0);
+		reverb->diffusion (nValue / 99.0f);
 		m_ReverbSpinLock.Release ();
 		break;
 
 	case ParameterReverbLevel:
+		nValue=constrain((int)nValue,0,99);
 		m_ReverbSpinLock.Acquire ();
-		reverb->level (nValue / 99.0);
+		reverb->level (nValue / 99.0f);
 		m_ReverbSpinLock.Release ();
 		break;
 
@@ -581,11 +649,15 @@ void CMiniDexed::SetTGParameter (TTGParameter Parameter, int nValue, unsigned nT
 	case TGParameterVolume:		SetVolume (nValue, nTG);	break;
 	case TGParameterPan:		SetPan (nValue, nTG);		break;
 	case TGParameterMasterTune:	SetMasterTune (nValue, nTG);	break;
+	case TGParameterCutoff:		SetCutoff (nValue, nTG);	break;
+	case TGParameterResonance:	SetResonance (nValue, nTG);	break;
 
 	case TGParameterMIDIChannel:
 		assert (0 <= nValue && nValue <= 255);
 		SetMIDIChannel ((uint8_t) nValue, nTG);
 		break;
+
+	case TGParameterReverbSend:	SetReverbSend (nValue, nTG);	break;
 
 	default:
 		assert (0);
@@ -604,7 +676,10 @@ int CMiniDexed::GetTGParameter (TTGParameter Parameter, unsigned nTG)
 	case TGParameterVolume:		return m_nVolume[nTG];
 	case TGParameterPan:		return m_nPan[nTG];
 	case TGParameterMasterTune:	return m_nMasterTune[nTG];
+	case TGParameterCutoff:		return m_nCutoff[nTG];
+	case TGParameterResonance:	return m_nResonance[nTG];
 	case TGParameterMIDIChannel:	return m_nMIDIChannel[nTG];
+	case TGParameterReverbSend:	return m_nReverbSend[nTG];
 
 	default:
 		assert (0);
@@ -620,6 +695,22 @@ void CMiniDexed::SetVoiceParameter (uint8_t uchOffset, uint8_t uchValue, unsigne
 
 	if (nOP < 6)
 	{
+		if (uchOffset == DEXED_OP_ENABLE)
+		{
+			if (uchValue)
+			{
+				m_uchOPMask[nTG] |= 1 << nOP;
+			}
+			else
+			{
+				m_uchOPMask[nTG] &= ~(1 << nOP);
+			}
+
+			m_pTG[nTG]->setOPAll (m_uchOPMask[nTG]);
+
+			return;
+		}
+
 		nOP = 5 - nOP;		// OPs are in reverse order
 	}
 
@@ -637,6 +728,11 @@ uint8_t CMiniDexed::GetVoiceParameter (uint8_t uchOffset, unsigned nOP, unsigned
 
 	if (nOP < 6)
 	{
+		if (uchOffset == DEXED_OP_ENABLE)
+		{
+			return !!(m_uchOPMask[nTG] & (1 << nOP));
+		}
+
 		nOP = 5 - nOP;		// OPs are in reverse order
 	}
 
@@ -677,15 +773,9 @@ void CMiniDexed::ProcessSound (void)
 		float32_t SampleBuffer[nFrames];
 		m_pTG[0]->getSamples (SampleBuffer, nFrames);
 
-		// Convert dual float array (left, right) to single int16 array (left/right)
-		float32_t tmp_float[nFrames*2];
-		int16_t tmp_int[nFrames*2];
-		for(uint16_t i=0; i<nFrames;i++)
-		{
-			tmp_float[i*2]=SampleBuffer[i];
-			tmp_float[(i*2)+1]=SampleBuffer[i];
-		}
-		arm_float_to_q15(tmp_float,tmp_int,nFrames*2);
+		// Convert single float array (mono) to int16 array
+		int16_t tmp_int[nFrames];
+		arm_float_to_q15(SampleBuffer,tmp_int,nFrames);
 
 		if (m_pSoundDevice->Write (tmp_int, sizeof(tmp_int)) != (int) sizeof(tmp_int))
 		{
@@ -743,59 +833,55 @@ void CMiniDexed::ProcessSound (void)
 		// Audio signal path after tone generators starts here
 		//
 
-		// now mix the output of all TGs
-		float32_t SampleBuffer[2][nFrames];
-		uint8_t indexL=0, indexR=1;
+		assert (CConfig::ToneGenerators == 8);
 
+		// swap stereo channels if needed
+		uint8_t indexL=0, indexR=1;
 		if (m_bChannelsSwapped)
 		{
 			indexL=1;
 			indexR=0;
 		}
-
-		// init left sum output
-		assert (SampleBuffer[0]!=NULL);
-		arm_fill_f32(0.0, SampleBuffer[0], nFrames);
-		// init right sum output
-		assert (SampleBuffer[1]!=NULL);
-		arm_fill_f32(0.0, SampleBuffer[1], nFrames);
 		
-		assert (CConfig::ToneGenerators == 8);
-
-		// BEGIN stereo panorama
+		// BEGIN TG mixing
 		for (uint8_t i = 0; i < CConfig::ToneGenerators; i++)
 		{
-			float32_t tmpBuffer[nFrames];
-
-			m_PanoramaSpinLock.Acquire ();
-			// calculate left panorama of this TG
-			arm_scale_f32(m_OutputLevel[i], 1.0f-m_fPan[i], tmpBuffer, nFrames);
-			// add left panorama output of this TG to sum output
-			arm_add_f32(SampleBuffer[indexL], tmpBuffer, SampleBuffer[indexL], nFrames);
-
-			// calculate right panorama of this TG
-			arm_scale_f32(m_OutputLevel[i], m_fPan[i], tmpBuffer, nFrames);
-			// add right panaorama output of this TG to sum output
-			arm_add_f32(SampleBuffer[indexR], tmpBuffer, SampleBuffer[indexR], nFrames);
-			m_PanoramaSpinLock.Release ();
+			tg_mixer->doAddMix(i,m_OutputLevel[i]);
+			reverb_send_mixer->doAddMix(i,m_OutputLevel[i]);
 		}
-		// END stereo panorama
+		// END TG mixing
+
+		// BEGIN create SampleBuffer for holding audio data
+		float32_t SampleBuffer[2][nFrames];
+		// END create SampleBuffer for holding audio data
+
+		// get the mix of all TGs
+                tg_mixer->getMix(SampleBuffer[indexL], SampleBuffer[indexR]);
 
 		// BEGIN adding reverb
 		if (m_nParameter[ParameterReverbEnable])
 		{
 			float32_t ReverbBuffer[2][nFrames];
+			float32_t ReverbSendBuffer[2][nFrames];
+
+			arm_fill_f32(0.0f, ReverbBuffer[indexL], nFrames);
+			arm_fill_f32(0.0f, ReverbBuffer[indexR], nFrames);
+			arm_fill_f32(0.0f, ReverbSendBuffer[indexR], nFrames);
+			arm_fill_f32(0.0f, ReverbSendBuffer[indexL], nFrames);
 
 			m_ReverbSpinLock.Acquire ();
-			reverb->doReverb(SampleBuffer[indexL],SampleBuffer[indexR],ReverbBuffer[0], ReverbBuffer[1],nFrames);
-			m_ReverbSpinLock.Release ();
+
+                	reverb_send_mixer->getMix(ReverbSendBuffer[indexL], ReverbSendBuffer[indexR]);
+			reverb->doReverb(ReverbSendBuffer[indexL],ReverbSendBuffer[indexR],ReverbBuffer[indexL], ReverbBuffer[indexR],nFrames);
 
 			// scale down and add left reverb buffer by reverb level 
-			arm_scale_f32(ReverbBuffer[0], reverb->get_level(), ReverbBuffer[0], nFrames);
-			arm_add_f32(SampleBuffer[indexL], ReverbBuffer[0], SampleBuffer[indexL], nFrames);
+			arm_scale_f32(ReverbBuffer[indexL], reverb->get_level(), ReverbBuffer[indexL], nFrames);
+			arm_add_f32(SampleBuffer[indexL], ReverbBuffer[indexL], SampleBuffer[indexL], nFrames);
 			// scale down and add right reverb buffer by reverb level 
-			arm_scale_f32(ReverbBuffer[1], reverb->get_level(), ReverbBuffer[1], nFrames);
-			arm_add_f32(SampleBuffer[indexR], ReverbBuffer[1], SampleBuffer[indexR], nFrames);
+			arm_scale_f32(ReverbBuffer[indexR], reverb->get_level(), ReverbBuffer[indexR], nFrames);
+			arm_add_f32(SampleBuffer[indexR], ReverbBuffer[indexR], SampleBuffer[indexR], nFrames);
+
+			m_ReverbSpinLock.Release ();
 		}
 		// END adding reverb
 
@@ -833,10 +919,14 @@ bool CMiniDexed::SavePerformance (void)
 		m_PerformanceConfig.SetVolume (m_nVolume[nTG], nTG);
 		m_PerformanceConfig.SetPan (m_nPan[nTG], nTG);
 		m_PerformanceConfig.SetDetune (m_nMasterTune[nTG], nTG);
+		m_PerformanceConfig.SetCutoff (m_nCutoff[nTG], nTG);
+		m_PerformanceConfig.SetResonance (m_nResonance[nTG], nTG);
 
 		m_PerformanceConfig.SetNoteLimitLow (m_nNoteLimitLow[nTG], nTG);
 		m_PerformanceConfig.SetNoteLimitHigh (m_nNoteLimitHigh[nTG], nTG);
 		m_PerformanceConfig.SetNoteShift (m_nNoteShift[nTG], nTG);
+
+		m_PerformanceConfig.SetReverbSend (m_nReverbSend[nTG], nTG);
 	}
 
 	m_PerformanceConfig.SetCompressorEnable (!!m_nParameter[ParameterCompressorEnable]);

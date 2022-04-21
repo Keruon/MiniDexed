@@ -26,6 +26,7 @@
 #include "userinterface.h"
 #include "sysexfileloader.h"
 #include "config.h"
+#include <cmath>
 #include <circle/sysconfig.h>
 #include <assert.h>
 
@@ -63,7 +64,10 @@ const CUIMenu::TMenuItem CUIMenu::s_TGMenu[] =
 #ifdef ARM_ALLOW_MULTI_CORE
 	{"Pan",		EditTGParameter,	0,	CMiniDexed::TGParameterPan},
 #endif
+	{"Reverb-Send",	EditTGParameter,	0,	CMiniDexed::TGParameterReverbSend},
 	{"Detune",	EditTGParameter,	0,	CMiniDexed::TGParameterMasterTune},
+	{"Cutoff",	EditTGParameter,	0,	CMiniDexed::TGParameterCutoff},
+	{"Resonance",	EditTGParameter,	0,	CMiniDexed::TGParameterResonance},
 	{"Channel",	EditTGParameter,	0,	CMiniDexed::TGParameterMIDIChannel},
 	{"Edit Voice",	MenuHandler,		s_EditVoiceMenu},
 	{0}
@@ -103,6 +107,8 @@ const CUIMenu::TMenuItem CUIMenu::s_EditVoiceMenu[] =
 	{"OP4",		MenuHandler,		s_OperatorMenu, 3},
 	{"OP5",		MenuHandler,		s_OperatorMenu, 4},
 	{"OP6",		MenuHandler,		s_OperatorMenu, 5},
+	{"Algorithm",	EditVoiceParameter,	0,		DEXED_ALGORITHM},
+	{"Feedback",	EditVoiceParameter,	0,		DEXED_FEEDBACK},
 	{"P EG Rate 1",	EditVoiceParameter,	0,		DEXED_PITCH_EG_R1},
 	{"P EG Rate 2",	EditVoiceParameter,	0,		DEXED_PITCH_EG_R2},
 	{"P EG Rate 3",	EditVoiceParameter,	0,		DEXED_PITCH_EG_R3},
@@ -111,8 +117,6 @@ const CUIMenu::TMenuItem CUIMenu::s_EditVoiceMenu[] =
 	{"P EG Level 2",EditVoiceParameter,	0,		DEXED_PITCH_EG_L2},
 	{"P EG Level 3",EditVoiceParameter,	0,		DEXED_PITCH_EG_L3},
 	{"P EG Level 4",EditVoiceParameter,	0,		DEXED_PITCH_EG_L4},
-	{"Algorithm",	EditVoiceParameter,	0,		DEXED_ALGORITHM},
-	{"Feedback",	EditVoiceParameter,	0,		DEXED_FEEDBACK},
 	{"Osc Key Sync",EditVoiceParameter,	0,		DEXED_OSC_KEY_SYNC},
 	{"LFO Speed",	EditVoiceParameter,	0,		DEXED_LFO_SPEED},
 	{"LFO Delay",	EditVoiceParameter,	0,		DEXED_LFO_DELAY},
@@ -127,6 +131,11 @@ const CUIMenu::TMenuItem CUIMenu::s_EditVoiceMenu[] =
 
 const CUIMenu::TMenuItem CUIMenu::s_OperatorMenu[] =
 {
+	{"Output Level",EditOPParameter,	0,	DEXED_OP_OUTPUT_LEV},
+	{"Freq Coarse",	EditOPParameter,	0,	DEXED_OP_FREQ_COARSE},
+	{"Freq Fine",	EditOPParameter,	0,	DEXED_OP_FREQ_FINE},
+	{"Osc Detune",	EditOPParameter,	0,	DEXED_OP_OSC_DETUNE},
+	{"Osc Mode",	EditOPParameter,	0,	DEXED_OP_OSC_MODE},
 	{"EG Rate 1",	EditOPParameter,	0,	DEXED_OP_EG_R1},
 	{"EG Rate 2",	EditOPParameter,	0,	DEXED_OP_EG_R2},
 	{"EG Rate 3",	EditOPParameter,	0,	DEXED_OP_EG_R3},
@@ -143,11 +152,7 @@ const CUIMenu::TMenuItem CUIMenu::s_OperatorMenu[] =
 	{"Rate Scaling",EditOPParameter,	0,	DEXED_OP_OSC_RATE_SCALE},
 	{"A Mod Sens.",	EditOPParameter,	0,	DEXED_OP_AMP_MOD_SENS},
 	{"K Vel. Sens.",EditOPParameter,	0,	DEXED_OP_KEY_VEL_SENS},
-	{"Output Level",EditOPParameter,	0,	DEXED_OP_OUTPUT_LEV},
-	{"Osc Mode",	EditOPParameter,	0,	DEXED_OP_OSC_MODE},
-	{"Freq Coarse",	EditOPParameter,	0,	DEXED_OP_FREQ_COARSE},
-	{"Freq Fine",	EditOPParameter,	0,	DEXED_OP_FREQ_FINE},
-	{"Osc Detune",	EditOPParameter,	0,	DEXED_OP_OSC_DETUNE},
+	{"Enable", EditOPParameter, 0, DEXED_OP_ENABLE},
 	{0}
 };
 
@@ -173,12 +178,15 @@ const CUIMenu::TParameter CUIMenu::s_GlobalParameter[CMiniDexed::ParameterUnknow
 // must match CMiniDexed::TTGParameter
 const CUIMenu::TParameter CUIMenu::s_TGParameter[CMiniDexed::TGParameterUnknown] =
 {
-	{0,	CSysExFileLoader::MaxVoiceBankID,	1},		// TGParameterVoiceBank
-	{0,	CSysExFileLoader::VoicesPerBank-1,	1},		// TGParameterProgram
-	{0,	127,					8, ToVolume},	// TGParameterVolume
-	{0,	127,					8, ToPan},	// TGParameterPan
-	{-99,	99,					1},		// TGParameterMasterTune
-	{0,	CMIDIDevice::ChannelUnknown-1,		1, ToMIDIChannel} // TGParameterMIDIChannel
+	{0,	CSysExFileLoader::MaxVoiceBankID,	1},			// TGParameterVoiceBank
+	{0,	CSysExFileLoader::VoicesPerBank-1,	1},			// TGParameterProgram
+	{0,	127,					8, ToVolume},		// TGParameterVolume
+	{0,	127,					8, ToPan},		// TGParameterPan
+	{-99,	99,					1},			// TGParameterMasterTune
+	{0,	99,					1},			// TGParameterCutoff
+	{0,	99,					1},			// TGParameterResonance
+	{0,	CMIDIDevice::ChannelUnknown-1,		1, ToMIDIChannel}, 	// TGParameterMIDIChannel
+	{0, 99, 1}								// TGParameterReverbSend
 };
 
 // must match DexedVoiceParameters in Synth_Dexed
@@ -228,7 +236,8 @@ const CUIMenu::TParameter CUIMenu::s_OPParameter[] =
 	{0,	1,	1,	ToOscillatorMode},	// DEXED_OP_OSC_MODE
 	{0,	31,	1},				// DEXED_OP_FREQ_COARSE
 	{0,	99,	1},				// DEXED_OP_FREQ_FINE
-	{0,	14,	1,	ToOscillatorDetune}	// DEXED_OP_OSC_DETUNE
+	{0,	14,	1,	ToOscillatorDetune},	// DEXED_OP_OSC_DETUNE
+	{0, 1, 1, ToOnOff}		// DEXED_OP_ENABLE
 };
 
 const char CUIMenu::s_NoteName[100][4] =
@@ -647,7 +656,57 @@ void CUIMenu::EditOPParameter (CUIMenu *pUIMenu, TMenuEvent Event)
 	string OP ("OP");
 	OP += to_string (nOP+1);
 
-	string Value = GetOPValueString (nParam, nValue);
+	string Value;
+
+	static const int FixedMultiplier[4] = {1, 10, 100, 1000};
+	if (nParam == DEXED_OP_FREQ_COARSE)
+	{
+		if (!pUIMenu->m_pMiniDexed->GetVoiceParameter (DEXED_OP_OSC_MODE, nOP, nTG))
+		{
+			// Ratio
+			if (!nValue)
+			{
+				Value = "0.50";
+			}
+			else
+			{
+				Value = to_string (nValue);
+				Value += ".00";
+			}
+		}
+		else
+		{
+			// Fixed
+			Value = to_string (FixedMultiplier[nValue % 4]);
+		}
+	}
+	else if (nParam == DEXED_OP_FREQ_FINE)
+	{
+		int nCoarse = pUIMenu->m_pMiniDexed->GetVoiceParameter (
+							DEXED_OP_FREQ_COARSE, nOP, nTG);
+
+		char Buffer[20];
+		if (!pUIMenu->m_pMiniDexed->GetVoiceParameter (DEXED_OP_OSC_MODE, nOP, nTG))
+		{
+			// Ratio
+			float fValue = 1.0f + nValue / 100.0f;
+			fValue *= !nCoarse ? 0.5f : (float) nCoarse;
+			sprintf (Buffer, "%.2f", (double) fValue);
+		}
+		else
+		{
+			// Fixed
+			float fValue = powf (1.023293f, (float) nValue);
+			fValue *= (float) FixedMultiplier[nCoarse % 4];
+			sprintf (Buffer, "%.3fHz", (double) fValue);
+		}
+
+		Value = Buffer;
+	}
+	else
+	{
+		Value = GetOPValueString (nParam, nValue);
+	}
 
 	pUIMenu->m_pUI->DisplayWrite (OP.c_str (),
 				      pUIMenu->m_pParentMenu[pUIMenu->m_nCurrentMenuItem].Name,

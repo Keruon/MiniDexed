@@ -31,15 +31,24 @@
 #define MIDI_AFTERTOUCH		0b1010			// TODO
 #define MIDI_CONTROL_CHANGE	0b1011
 	#define MIDI_CC_BANK_SELECT_MSB		0	// TODO
-	#define MIDI_CC_MODULATION		1
-	#define MIDI_CC_VOLUME			7
+	#define MIDI_CC_MODULATION			1
+	#define MIDI_CC_VOLUME				7
+	#define MIDI_CC_PAN_POSITION		10
 	#define MIDI_CC_BANK_SELECT_LSB		32
 	#define MIDI_CC_BANK_SUSTAIN		64
+	#define MIDI_CC_RESONANCE			71
+	#define MIDI_CC_FREQUENCY_CUTOFF	74
+	#define MIDI_CC_REVERB_LEVEL		91
+	#define MIDI_CC_DETUNE_LEVEL		94
+	#define MIDI_CC_ALL_SOUND_OFF		120
+	#define MIDI_CC_ALL_NOTES_OFF		123
 #define MIDI_PROGRAM_CHANGE	0b1100
 #define MIDI_PITCH_BEND		0b1110
 
 #define MIDI_TIMING_CLOCK	0xF8
 #define MIDI_ACTIVE_SENSING	0xFE
+
+CMIDIDevice::TDeviceMap CMIDIDevice::s_DeviceMap;
 
 CMIDIDevice::CMIDIDevice (CMiniDexed *pSynthesizer, CConfig *pConfig)
 :	m_pSynthesizer (pSynthesizer),
@@ -97,6 +106,18 @@ void CMIDIDevice::MIDIMessageHandler (const u8 *pMessage, size_t nLength, unsign
 				(unsigned) pMessage[0], (unsigned) pMessage[1],
 				(unsigned) pMessage[2]);
 			break;
+		}
+	}
+
+	// Handle MIDI Thru
+	if (m_DeviceName.compare (m_pConfig->GetMIDIThruIn ()) == 0)
+	{
+		TDeviceMap::const_iterator Iterator;
+
+		Iterator = s_DeviceMap.find (m_pConfig->GetMIDIThruOut ());
+		if (Iterator != s_DeviceMap.end ())
+		{
+			Iterator->second->Send (pMessage, nLength, nCable);
 		}
 	}
 
@@ -162,12 +183,40 @@ void CMIDIDevice::MIDIMessageHandler (const u8 *pMessage, size_t nLength, unsign
 					m_pSynthesizer->SetVolume (pMessage[2], nTG);
 					break;
 
+				case MIDI_CC_PAN_POSITION:
+					m_pSynthesizer->SetPan (pMessage[2], nTG);
+					break;
+
 				case MIDI_CC_BANK_SELECT_LSB:
 					m_pSynthesizer->BankSelectLSB (pMessage[2], nTG);
 					break;
 
 				case MIDI_CC_BANK_SUSTAIN:
 					m_pSynthesizer->setSustain (pMessage[2] >= 64, nTG);
+					break;
+
+				case MIDI_CC_RESONANCE:
+					m_pSynthesizer->SetResonance (pMessage[2], nTG);
+					break;
+					
+				case MIDI_CC_FREQUENCY_CUTOFF:
+					m_pSynthesizer->SetCutoff (pMessage[2], nTG);
+					break;
+
+				case MIDI_CC_REVERB_LEVEL:
+					m_pSynthesizer->SetReverbSend (maplong (pMessage[2], 0, 127, 0, 99), nTG);
+					break;
+
+				case MIDI_CC_DETUNE_LEVEL:
+					m_pSynthesizer->SetMasterTune (pMessage[2], nTG);
+					break;
+
+				case MIDI_CC_ALL_SOUND_OFF:
+					m_pSynthesizer->panic (pMessage[2], nTG);
+					break;
+
+				case MIDI_CC_ALL_NOTES_OFF:
+					m_pSynthesizer->notesOff (pMessage[2], nTG);
 					break;
 				}
 				break;
@@ -194,4 +243,15 @@ void CMIDIDevice::MIDIMessageHandler (const u8 *pMessage, size_t nLength, unsign
 			}
 		}
 	}
+}
+
+void CMIDIDevice::AddDevice (const char *pDeviceName)
+{
+	assert (pDeviceName);
+
+	assert (m_DeviceName.empty ());
+	m_DeviceName = pDeviceName;
+	assert (!m_DeviceName.empty ());
+
+	s_DeviceMap.insert (std::pair<std::string, CMIDIDevice *> (pDeviceName, this));
 }

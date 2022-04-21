@@ -40,8 +40,9 @@
 #include <circle/soundbasedevice.h>
 #include <circle/spinlock.h>
 #include "common.h"
+#include "effect_mixer.hpp"
 #include "effect_platervbstereo.h"
-#include "mixer.h"
+#include "effect_compressor.h"
 
 class CMiniDexed
 #ifdef ARM_ALLOW_MULTI_CORE
@@ -67,15 +68,21 @@ public:
 	void SetVolume (unsigned nVolume, unsigned nTG);
 	void SetPan (unsigned nPan, unsigned nTG);			// 0 .. 127
 	void SetMasterTune (int nMasterTune, unsigned nTG);		// -99 .. 99
+	void SetCutoff (int nCutoff, unsigned nTG);			// 0 .. 99
+	void SetResonance (int nResonance, unsigned nTG);		// 0 .. 99
 	void SetMIDIChannel (uint8_t uchChannel, unsigned nTG);
 
 	void keyup (int16_t pitch, unsigned nTG);
 	void keydown (int16_t pitch, uint8_t velocity, unsigned nTG);
 
 	void setSustain (bool sustain, unsigned nTG);
+	void panic (uint8_t value, unsigned nTG);
+	void notesOff (uint8_t value, unsigned nTG);
 	void setModWheel (uint8_t value, unsigned nTG);
 	void setPitchbend (int16_t value, unsigned nTG);
 	void ControllersRefresh (unsigned nTG);
+
+	void SetReverbSend (unsigned nReverbSend, unsigned nTG);			// 0 .. 127
 
 	enum TParameter
 	{
@@ -100,7 +107,10 @@ public:
 		TGParameterVolume,
 		TGParameterPan,
 		TGParameterMasterTune,
+		TGParameterCutoff,
+		TGParameterResonance,
 		TGParameterMIDIChannel,
+		TGParameterReverbSend,
 		TGParameterUnknown
 	};
 
@@ -118,7 +128,8 @@ public:
 
 private:
 	int16_t ApplyNoteLimits (int16_t pitch, unsigned nTG);	// returns < 0 to ignore note
-
+	uint8_t m_uchOPMask[CConfig::ToneGenerators];
+	
 	void ProcessSound (void);
 
 #ifdef ARM_ALLOW_MULTI_CORE
@@ -143,13 +154,16 @@ private:
 	unsigned m_nProgram[CConfig::ToneGenerators];
 	unsigned m_nVolume[CConfig::ToneGenerators];
 	unsigned m_nPan[CConfig::ToneGenerators];
-	float32_t m_fPan[CConfig::ToneGenerators];
 	int m_nMasterTune[CConfig::ToneGenerators];
+	int m_nCutoff[CConfig::ToneGenerators];
+	int m_nResonance[CConfig::ToneGenerators];
 	unsigned m_nMIDIChannel[CConfig::ToneGenerators];
 
 	unsigned m_nNoteLimitLow[CConfig::ToneGenerators];
 	unsigned m_nNoteLimitHigh[CConfig::ToneGenerators];
 	int m_nNoteShift[CConfig::ToneGenerators];
+
+	unsigned m_nReverbSend[CConfig::ToneGenerators];
 
 	CUserInterface m_UI;
 	CSysExFileLoader m_SysExFileLoader;
@@ -175,9 +189,9 @@ private:
 	bool m_bProfileEnabled;
 
 	AudioEffectPlateReverb* reverb;
-	AudioStereoMixer<8>* tg_mixer;
+	AudioStereoMixer<CConfig::ToneGenerators>* tg_mixer;
+	AudioStereoMixer<CConfig::ToneGenerators>* reverb_send_mixer;
 
-	CSpinLock m_PanoramaSpinLock;
 	CSpinLock m_ReverbSpinLock;
 };
 
