@@ -230,7 +230,9 @@ void CMIDIDevice::MIDIMessageHandler (const u8 *pMessage, size_t nLength, unsign
 				break;
 
 			case MIDI_PROGRAM_CHANGE:
-				m_pSynthesizer->ProgramChange (pMessage[1], nTG);
+				// do program change only if enabled in config
+				if( m_pConfig->GetMIDIRXProgramChange() )
+					m_pSynthesizer->ProgramChange (pMessage[1], nTG);
 				break;
 
 			case MIDI_PITCH_BEND: {
