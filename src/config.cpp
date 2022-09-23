@@ -79,14 +79,38 @@ void CConfig::Load (void)
 	m_nLCDPinData5 = m_Properties.GetNumber ("LCDPinData5", 23);
 	m_nLCDPinData6 = m_Properties.GetNumber ("LCDPinData6", 24);
 	m_nLCDPinData7 = m_Properties.GetNumber ("LCDPinData7", 25);
+	m_nLCDI2CAddress = m_Properties.GetNumber ("LCDI2CAddress", 0);
+
+	m_nSSD1306LCDI2CAddress = m_Properties.GetNumber ("SSD1306LCDI2CAddress", 0);
+	m_nSSD1306LCDWidth = m_Properties.GetNumber ("SSD1306LCDWidth", 128);
+	m_nSSD1306LCDHeight = m_Properties.GetNumber ("SSD1306LCDHeight", 32);
+
+	m_nLCDColumns = m_Properties.GetNumber ("LCDColumns", 16);
+	m_nLCDRows = m_Properties.GetNumber ("LCDRows", 2);
+
+	m_nButtonPinPrev = m_Properties.GetNumber ("ButtonPinPrev", 0);
+	m_nButtonPinNext = m_Properties.GetNumber ("ButtonPinNext", 0);
+	m_nButtonPinBack = m_Properties.GetNumber ("ButtonPinBack", 11);
+	m_nButtonPinSelect = m_Properties.GetNumber ("ButtonPinSelect", 11);
+	m_nButtonPinHome = m_Properties.GetNumber ("ButtonPinHome", 11);
+	m_nButtonPinShortcut = m_Properties.GetNumber ("ButtonPinShortcut", 11);
+
+	m_ButtonActionPrev = m_Properties.GetString ("ButtonActionPrev", "");
+	m_ButtonActionNext = m_Properties.GetString ("ButtonActionNext", "");
+	m_ButtonActionBack = m_Properties.GetString ("ButtonActionBack", "doubleclick");
+	m_ButtonActionSelect = m_Properties.GetString ("ButtonActionSelect", "click");
+	m_ButtonActionHome = m_Properties.GetString ("ButtonActionHome", "longpress");
+
+	m_nDoubleClickTimeout = m_Properties.GetNumber ("DoubleClickTimeout", 400);
+	m_nLongPressTimeout = m_Properties.GetNumber ("LongPressTimeout", 600);
 
 	m_bEncoderEnabled = m_Properties.GetNumber ("EncoderEnabled", 0) != 0;
 	m_nEncoderPinClock = m_Properties.GetNumber ("EncoderPinClock", 10);
 	m_nEncoderPinData = m_Properties.GetNumber ("EncoderPinData", 9);
-	m_nEncoderPinSwitch = m_Properties.GetNumber ("EncoderPinSwitch", 11);
 
 	m_bMIDIDumpEnabled  = m_Properties.GetNumber ("MIDIDumpEnabled", 0) != 0;
 	m_bProfileEnabled = m_Properties.GetNumber ("ProfileEnabled", 0) != 0;
+	m_bPerformanceSelectToLoad = m_Properties.GetNumber ("PerformanceSelectToLoad", 1) != 0;
 }
 
 const char *CConfig::GetSoundDevice (void) const
@@ -174,6 +198,101 @@ unsigned CConfig::GetLCDPinData7 (void) const
 	return m_nLCDPinData7;
 }
 
+unsigned CConfig::GetLCDI2CAddress (void) const
+{
+	return m_nLCDI2CAddress;
+}
+
+unsigned CConfig::GetSSD1306LCDI2CAddress (void) const
+{
+	return m_nSSD1306LCDI2CAddress;
+}
+
+unsigned CConfig::GetSSD1306LCDWidth (void) const
+{
+	return m_nSSD1306LCDWidth;
+}
+
+unsigned CConfig::GetSSD1306LCDHeight (void) const
+{
+	return m_nSSD1306LCDHeight;
+}
+
+unsigned CConfig::GetLCDColumns (void) const
+{
+	return m_nLCDColumns;
+}
+
+unsigned CConfig::GetLCDRows (void) const
+{
+	return m_nLCDRows;
+}
+
+unsigned CConfig::GetButtonPinPrev (void) const
+{
+	return m_nButtonPinPrev;
+}
+
+unsigned CConfig::GetButtonPinNext (void) const
+{
+	return m_nButtonPinNext;
+}
+
+unsigned CConfig::GetButtonPinBack (void) const
+{
+	return m_nButtonPinBack;
+}
+
+unsigned CConfig::GetButtonPinSelect (void) const
+{
+	return m_nButtonPinSelect;
+}
+
+unsigned CConfig::GetButtonPinHome (void) const
+{
+	return m_nButtonPinHome;
+}
+
+unsigned CConfig::GetButtonPinShortcut (void) const
+{
+	return m_nButtonPinShortcut;
+}
+
+const char *CConfig::GetButtonActionPrev (void) const
+{
+	return m_ButtonActionPrev.c_str();
+}
+
+const char *CConfig::GetButtonActionNext (void) const
+{
+	return m_ButtonActionNext.c_str();
+}
+
+const char *CConfig::GetButtonActionBack (void) const
+{
+	return m_ButtonActionBack.c_str();
+}
+
+const char *CConfig::GetButtonActionSelect (void) const
+{
+	return m_ButtonActionSelect.c_str();
+}
+
+const char *CConfig::GetButtonActionHome (void) const
+{
+	return m_ButtonActionHome.c_str();
+}
+
+unsigned CConfig::GetDoubleClickTimeout (void) const
+{
+	return m_nDoubleClickTimeout;
+}
+
+unsigned CConfig::GetLongPressTimeout (void) const
+{
+	return m_nLongPressTimeout;
+}
+
 bool CConfig::GetEncoderEnabled (void) const
 {
 	return m_bEncoderEnabled;
@@ -189,11 +308,6 @@ unsigned CConfig::GetEncoderPinData (void) const
 	return m_nEncoderPinData;
 }
 
-unsigned CConfig::GetEncoderPinSwitch (void) const
-{
-	return m_nEncoderPinSwitch;
-}
-
 bool CConfig::GetMIDIDumpEnabled (void) const
 {
 	return m_bMIDIDumpEnabled;
@@ -202,4 +316,9 @@ bool CConfig::GetMIDIDumpEnabled (void) const
 bool CConfig::GetProfileEnabled (void) const
 {
 	return m_bProfileEnabled;
+}
+
+bool CConfig::GetPerformanceSelectToLoad (void) const
+{
+	return m_bPerformanceSelectToLoad;
 }

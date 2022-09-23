@@ -27,12 +27,14 @@
 
 LOGMODULE ("ui");
 
-CUserInterface::CUserInterface (CMiniDexed *pMiniDexed, CGPIOManager *pGPIOManager, CConfig *pConfig)
+CUserInterface::CUserInterface (CMiniDexed *pMiniDexed, CGPIOManager *pGPIOManager, CI2CMaster *pI2CMaster, CConfig *pConfig)
 :	m_pMiniDexed (pMiniDexed),
 	m_pGPIOManager (pGPIOManager),
+	m_pI2CMaster (pI2CMaster),
 	m_pConfig (pConfig),
 	m_pLCD (0),
 	m_pLCDBuffered (0),
+	m_pUIButtons (0),
 	m_pRotaryEncoder (0),
 	m_bSwitchPressed (false),
 	m_Menu (this, pMiniDexed)
@@ -42,6 +44,7 @@ CUserInterface::CUserInterface (CMiniDexed *pMiniDexed, CGPIOManager *pGPIOManag
 CUserInterface::~CUserInterface (void)
 {
 	delete m_pRotaryEncoder;
+	delete m_pUIButtons;
 	delete m_pLCDBuffered;
 	delete m_pLCD;
 }
@@ -52,20 +55,45 @@ bool CUserInterface::Initialize (void)
 
 	if (m_pConfig->GetLCDEnabled ())
 	{
-		m_pLCD = new CHD44780Device (CConfig::LCDColumns, CConfig::LCDRows,
-					     m_pConfig->GetLCDPinData4 (),
-					     m_pConfig->GetLCDPinData5 (),
-					     m_pConfig->GetLCDPinData6 (),
-					     m_pConfig->GetLCDPinData7 (),
-					     m_pConfig->GetLCDPinEnable (),
-					     m_pConfig->GetLCDPinRegisterSelect (),
-					     m_pConfig->GetLCDPinReadWrite ());
-		assert (m_pLCD);
-
-		if (!m_pLCD->Initialize ())
+		unsigned i2caddr = m_pConfig->GetLCDI2CAddress ();
+		unsigned ssd1306addr = m_pConfig->GetSSD1306LCDI2CAddress ();
+		if (ssd1306addr != 0) {
+			m_pSSD1306 = new CSSD1306Device (m_pConfig->GetSSD1306LCDWidth (), m_pConfig->GetSSD1306LCDHeight (), m_pI2CMaster, ssd1306addr);
+			LOGDBG ("LCD: SSD1306");
+			if (!m_pSSD1306->Initialize ())
+			{
+				return false;
+			}
+			m_pLCD = m_pSSD1306;
+		} else if (i2caddr == 0)
 		{
-			return false;
+			m_pHD44780 = new CHD44780Device (m_pConfig->GetLCDColumns (), m_pConfig->GetLCDRows (),
+							 m_pConfig->GetLCDPinData4 (),
+							 m_pConfig->GetLCDPinData5 (),
+							 m_pConfig->GetLCDPinData6 (),
+							 m_pConfig->GetLCDPinData7 (),
+							 m_pConfig->GetLCDPinEnable (),
+							 m_pConfig->GetLCDPinRegisterSelect (),
+							 m_pConfig->GetLCDPinReadWrite ());
+			LOGDBG ("LCD: HD44780");
+			if (!m_pHD44780->Initialize ())
+			{
+				return false;
+			}
+			m_pLCD = m_pHD44780;
 		}
+		else
+		{
+			m_pHD44780 = new CHD44780Device (m_pI2CMaster, i2caddr,
+							m_pConfig->GetLCDColumns (), m_pConfig->GetLCDRows ());
+			LOGDBG ("LCD: HD44780 I2C");
+			if (!m_pHD44780->Initialize ())
+			{
+				return false;
+			}
+			m_pLCD = m_pHD44780;
+		}
+		assert (m_pLCD);
 
 		m_pLCDBuffered = new CWriteBufferDevice (m_pLCD);
 		assert (m_pLCDBuffered);
@@ -75,11 +103,34 @@ bool CUserInterface::Initialize (void)
 		LOGDBG ("LCD initialized");
 	}
 
+	m_pUIButtons = new CUIButtons (	m_pConfig->GetButtonPinPrev (),
+									m_pConfig->GetButtonActionPrev (),
+									m_pConfig->GetButtonPinNext (),
+									m_pConfig->GetButtonActionNext (),
+									m_pConfig->GetButtonPinBack (),
+									m_pConfig->GetButtonActionBack (),
+									m_pConfig->GetButtonPinSelect (),
+									m_pConfig->GetButtonActionSelect (),
+									m_pConfig->GetButtonPinHome (),
+									m_pConfig->GetButtonActionHome (),
+									m_pConfig->GetDoubleClickTimeout (),
+									m_pConfig->GetLongPressTimeout () );
+	assert (m_pUIButtons);
+
+	if (!m_pUIButtons->Initialize ())
+	{
+		return false;
+	}
+
+	m_pUIButtons->RegisterEventHandler (UIButtonsEventStub, this);
+
+	LOGDBG ("Button User Interface initialized");
+
 	if (m_pConfig->GetEncoderEnabled ())
 	{
 		m_pRotaryEncoder = new CKY040 (m_pConfig->GetEncoderPinClock (),
 					       m_pConfig->GetEncoderPinData (),
-					       m_pConfig->GetEncoderPinSwitch (),
+					       m_pConfig->GetButtonPinShortcut (),
 					       m_pGPIOManager);
 		assert (m_pRotaryEncoder);
 
@@ -104,6 +155,10 @@ void CUserInterface::Process (void)
 	{
 		m_pLCDBuffered->Update ();
 	}
+	if (m_pUIButtons)
+	{
+		m_pUIButtons->Update();
+	}
 }
 
 void CUserInterface::ParameterChanged (void)
@@ -118,15 +173,15 @@ void CUserInterface::DisplayWrite (const char *pMenu, const char *pParam, const 
 	assert (pParam);
 	assert (pValue);
 
-	CString Msg ("\x1B[H");		// cursor home
+	CString Msg ("\x1B[H\E[?25l");		// cursor home and off
 
 	// first line
 	Msg.Append (pParam);
 
 	size_t nLen = strlen (pParam) + strlen (pMenu);
-	if (nLen < CConfig::LCDColumns)
+	if (nLen < m_pConfig->GetLCDColumns ())
 	{
-		for (unsigned i = CConfig::LCDColumns-nLen; i > 0; i--)
+		for (unsigned i = m_pConfig->GetLCDColumns ()-nLen; i > 0; i--)
 		{
 			Msg.Append (" ");
 		}
@@ -145,9 +200,9 @@ void CUserInterface::DisplayWrite (const char *pMenu, const char *pParam, const 
 
 	if (bArrowUp)
 	{
-		if (Value.GetLength () < CConfig::LCDColumns-1)
+		if (Value.GetLength () < m_pConfig->GetLCDColumns ()-1)
 		{
-			for (unsigned i = CConfig::LCDColumns-Value.GetLength ()-1; i > 0; i--)
+			for (unsigned i = m_pConfig->GetLCDColumns ()-Value.GetLength ()-1; i > 0; i--)
 			{
 				Value.Append (" ");
 			}
@@ -158,7 +213,7 @@ void CUserInterface::DisplayWrite (const char *pMenu, const char *pParam, const 
 
 	Msg.Append (Value);
 
-	if (Value.GetLength () < CConfig::LCDColumns)
+	if (Value.GetLength () < m_pConfig->GetLCDColumns ())
 	{
 		Msg.Append ("\x1B[K");		// clear end of line
 	}
@@ -187,25 +242,26 @@ void CUserInterface::EncoderEventHandler (CKY040::TEvent Event)
 		break;
 
 	case CKY040::EventClockwise:
-		m_Menu.EventHandler (m_bSwitchPressed ? CUIMenu::MenuEventPressAndStepUp
-						      : CUIMenu::MenuEventStepUp);
+		if (m_bSwitchPressed) {
+			// We must reset the encoder switch button to prevent events from being
+			// triggered after the encoder is rotated
+			m_pUIButtons->ResetButton(m_pConfig->GetButtonPinShortcut());
+			m_Menu.EventHandler(CUIMenu::MenuEventPressAndStepUp);
+
+		}
+		else {
+			m_Menu.EventHandler(CUIMenu::MenuEventStepUp);
+		}
 		break;
 
 	case CKY040::EventCounterclockwise:
-		m_Menu.EventHandler (m_bSwitchPressed ? CUIMenu::MenuEventPressAndStepDown
-						      : CUIMenu::MenuEventStepDown);
-		break;
-
-	case CKY040::EventSwitchClick:
-		m_Menu.EventHandler (CUIMenu::MenuEventBack);
-		break;
-
-	case CKY040::EventSwitchDoubleClick:
-		m_Menu.EventHandler (CUIMenu::MenuEventSelect);
-		break;
-
-	case CKY040::EventSwitchTripleClick:
-		m_Menu.EventHandler (CUIMenu::MenuEventHome);
+		if (m_bSwitchPressed) {
+			m_pUIButtons->ResetButton(m_pConfig->GetButtonPinShortcut());
+			m_Menu.EventHandler(CUIMenu::MenuEventPressAndStepDown);
+		}
+		else {
+			m_Menu.EventHandler(CUIMenu::MenuEventStepDown);
+		}
 		break;
 
 	case CKY040::EventSwitchHold:
@@ -228,4 +284,41 @@ void CUserInterface::EncoderEventStub (CKY040::TEvent Event, void *pParam)
 	assert (pThis != 0);
 
 	pThis->EncoderEventHandler (Event);
+}
+
+void CUserInterface::UIButtonsEventHandler (CUIButton::BtnEvent Event)
+{
+	switch (Event)
+	{
+	case CUIButton::BtnEventPrev:
+		m_Menu.EventHandler (CUIMenu::MenuEventStepDown);
+		break;
+
+	case CUIButton::BtnEventNext:
+		m_Menu.EventHandler (CUIMenu::MenuEventStepUp);
+		break;
+
+	case CUIButton::BtnEventBack:
+		m_Menu.EventHandler (CUIMenu::MenuEventBack);
+		break;
+
+	case CUIButton::BtnEventSelect:
+		m_Menu.EventHandler (CUIMenu::MenuEventSelect);
+		break;
+
+	case CUIButton::BtnEventHome:
+		m_Menu.EventHandler (CUIMenu::MenuEventHome);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void CUserInterface::UIButtonsEventStub (CUIButton::BtnEvent Event, void *pParam)
+{
+	CUserInterface *pThis = static_cast<CUserInterface *> (pParam);
+	assert (pThis != 0);
+
+	pThis->UIButtonsEventHandler (Event);
 }

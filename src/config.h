@@ -53,6 +53,7 @@ public:
 	static const unsigned MaxUSBMIDIDevices = 4;
 #endif
 
+	// TODO - Leave this for uimenu.cpp for now, but it will need to be dynamic at some point...
 	static const unsigned LCDColumns = 16;		// HD44780 LCD
 	static const unsigned LCDRows = 2;
 
@@ -86,17 +87,48 @@ public:
 	unsigned GetLCDPinData5 (void) const;
 	unsigned GetLCDPinData6 (void) const;
 	unsigned GetLCDPinData7 (void) const;
+	unsigned GetLCDI2CAddress (void) const;
+	
+	// SSD1306 LCD
+	unsigned GetSSD1306LCDI2CAddress (void) const;
+	unsigned GetSSD1306LCDWidth (void) const;
+	unsigned GetSSD1306LCDHeight (void) const;
+
+	unsigned GetLCDColumns (void) const;
+	unsigned GetLCDRows (void) const;
+
+	// GPIO Button Navigation
+	// GPIO pin numbers are chip numbers, not header positions
+	unsigned GetButtonPinPrev (void) const;
+	unsigned GetButtonPinNext (void) const;
+	unsigned GetButtonPinBack (void) const;
+	unsigned GetButtonPinSelect (void) const;
+	unsigned GetButtonPinHome (void) const;
+	unsigned GetButtonPinShortcut (void) const;
+
+	// Action type for buttons: "click", "doubleclick", "longpress", ""
+	const char *GetButtonActionPrev (void) const;
+	const char *GetButtonActionNext (void) const;
+	const char *GetButtonActionBack (void) const;
+	const char *GetButtonActionSelect (void) const;
+	const char *GetButtonActionHome (void) const;
+	
+	// Timeouts for button events in milliseconds
+	unsigned GetDoubleClickTimeout (void) const;
+	unsigned GetLongPressTimeout (void) const;
 
 	// KY-040 Rotary Encoder
 	// GPIO pin numbers are chip numbers, not header positions
 	bool GetEncoderEnabled (void) const;
 	unsigned GetEncoderPinClock (void) const;
 	unsigned GetEncoderPinData (void) const;
-	unsigned GetEncoderPinSwitch (void) const;
 
 	// Debug
 	bool GetMIDIDumpEnabled (void) const;
 	bool GetProfileEnabled (void) const;
+	
+	// Load performance mode. 0 for load just rotating encoder, 1 load just when Select is pushed
+	bool GetPerformanceSelectToLoad (void) const;
 
 private:
 	CPropertiesFatFsFile m_Properties;
@@ -120,14 +152,38 @@ private:
 	unsigned m_nLCDPinData5;
 	unsigned m_nLCDPinData6;
 	unsigned m_nLCDPinData7;
+	unsigned m_nLCDI2CAddress;
+	
+	unsigned m_nSSD1306LCDI2CAddress;
+	unsigned m_nSSD1306LCDWidth;
+	unsigned m_nSSD1306LCDHeight;
+	
+	unsigned m_nLCDColumns;
+	unsigned m_nLCDRows;
+	
+	unsigned m_nButtonPinPrev;
+	unsigned m_nButtonPinNext;
+	unsigned m_nButtonPinBack;
+	unsigned m_nButtonPinSelect;
+	unsigned m_nButtonPinHome;
+	unsigned m_nButtonPinShortcut;
+
+	std::string m_ButtonActionPrev;
+	std::string m_ButtonActionNext;
+	std::string m_ButtonActionBack;
+	std::string m_ButtonActionSelect;
+	std::string m_ButtonActionHome;
+	
+	unsigned m_nDoubleClickTimeout;
+	unsigned m_nLongPressTimeout;
 
 	bool m_bEncoderEnabled;
 	unsigned m_nEncoderPinClock;
 	unsigned m_nEncoderPinData;
-	unsigned m_nEncoderPinSwitch;
 
 	bool m_bMIDIDumpEnabled;
 	bool m_bProfileEnabled;
+	bool m_bPerformanceSelectToLoad;
 };
 
 #endif

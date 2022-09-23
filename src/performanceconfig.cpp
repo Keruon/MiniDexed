@@ -22,10 +22,13 @@
 //
 #include "performanceconfig.h"
 #include "mididevice.h"
+#include <cstring> 
+#include <algorithm> 
 
 CPerformanceConfig::CPerformanceConfig (FATFS *pFileSystem)
 :	m_Properties ("performance.ini", pFileSystem)
 {
+	m_pFileSystem = pFileSystem; 
 }
 
 CPerformanceConfig::~CPerformanceConfig (void)
@@ -98,7 +101,53 @@ bool CPerformanceConfig::Load (void)
 
 		PropertyName.Format ("ReverbSend%u", nTG+1);
 		m_nReverbSend[nTG] = m_Properties.GetNumber (PropertyName, 50);
-	}
+		
+		PropertyName.Format ("PitchBendRange%u", nTG+1);
+		m_nPitchBendRange[nTG] = m_Properties.GetNumber (PropertyName, 2);
+
+		PropertyName.Format ("PitchBendStep%u", nTG+1);
+		m_nPitchBendStep[nTG] = m_Properties.GetNumber (PropertyName, 0);
+
+		PropertyName.Format ("PortamentoMode%u", nTG+1);
+		m_nPortamentoMode[nTG] = m_Properties.GetNumber (PropertyName, 0);
+
+		PropertyName.Format ("PortamentoGlissando%u", nTG+1);
+		m_nPortamentoGlissando[nTG] = m_Properties.GetNumber (PropertyName, 0);
+
+		PropertyName.Format ("PortamentoTime%u", nTG+1);
+		m_nPortamentoTime[nTG] = m_Properties.GetNumber (PropertyName, 0);
+		
+		PropertyName.Format ("VoiceData%u", nTG+1); 
+		m_nVoiceDataTxt[nTG] = m_Properties.GetString (PropertyName, "");
+		
+		PropertyName.Format ("MonoMode%u", nTG+1);
+		m_bMonoMode[nTG] = m_Properties.GetNumber (PropertyName, 0) != 0;
+				
+		PropertyName.Format ("ModulationWheelRange%u", nTG+1);
+		m_nModulationWheelRange[nTG] = m_Properties.GetNumber (PropertyName, 99); 
+		
+		PropertyName.Format ("ModulationWheelTarget%u", nTG+1);
+		m_nModulationWheelTarget[nTG] = m_Properties.GetNumber (PropertyName, 1);
+		
+		PropertyName.Format ("FootControlRange%u", nTG+1);
+		m_nFootControlRange[nTG] = m_Properties.GetNumber (PropertyName, 99); 
+		
+		PropertyName.Format ("FootControlTarget%u", nTG+1);
+		m_nFootControlTarget[nTG] = m_Properties.GetNumber (PropertyName, 0);
+		
+		PropertyName.Format ("BreathControlRange%u", nTG+1);
+		m_nBreathControlRange[nTG] = m_Properties.GetNumber (PropertyName, 99); 
+		
+		PropertyName.Format ("BreathControlTarget%u", nTG+1);
+		m_nBreathControlTarget[nTG] = m_Properties.GetNumber (PropertyName, 0);
+		
+		PropertyName.Format ("AftertouchRange%u", nTG+1);
+		m_nAftertouchRange[nTG] = m_Properties.GetNumber (PropertyName, 99); 
+		
+		PropertyName.Format ("AftertouchTarget%u", nTG+1);
+		m_nAftertouchTarget[nTG] = m_Properties.GetNumber (PropertyName, 0);
+		
+		}
 
 	m_bCompressorEnable = m_Properties.GetNumber ("CompressorEnable", 1) != 0;
 
@@ -169,7 +218,54 @@ bool CPerformanceConfig::Save (void)
 
 		PropertyName.Format ("ReverbSend%u", nTG+1);
 		m_Properties.SetNumber (PropertyName, m_nReverbSend[nTG]);
-	}
+		
+		PropertyName.Format ("PitchBendRange%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nPitchBendRange[nTG]);
+
+		PropertyName.Format ("PitchBendStep%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nPitchBendStep[nTG]);
+
+		PropertyName.Format ("PortamentoMode%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nPortamentoMode[nTG]);
+
+		PropertyName.Format ("PortamentoGlissando%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nPortamentoGlissando[nTG]);
+
+		PropertyName.Format ("PortamentoTime%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nPortamentoTime[nTG]);
+		
+		PropertyName.Format ("VoiceData%u", nTG+1);
+		char *cstr = &m_nVoiceDataTxt[nTG][0];
+		m_Properties.SetString (PropertyName, cstr);
+		
+		PropertyName.Format ("MonoMode%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_bMonoMode[nTG] ? 1 : 0);
+				
+		PropertyName.Format ("ModulationWheelRange%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nModulationWheelRange[nTG]);
+	
+		PropertyName.Format ("ModulationWheelTarget%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nModulationWheelTarget[nTG]);	
+			
+		PropertyName.Format ("FootControlRange%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nFootControlRange[nTG]);	
+		
+		PropertyName.Format ("FootControlTarget%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nFootControlTarget[nTG]);	
+		
+		PropertyName.Format ("BreathControlRange%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nBreathControlRange[nTG]);	
+		
+		PropertyName.Format ("BreathControlTarget%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nBreathControlTarget[nTG]);	
+		
+		PropertyName.Format ("AftertouchRange%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nAftertouchRange[nTG]);	
+		
+		PropertyName.Format ("AftertouchTarget%u", nTG+1);
+		m_Properties.SetNumber (PropertyName, m_nAftertouchTarget[nTG]);			
+
+		}
 
 	m_Properties.SetNumber ("CompressorEnable", m_bCompressorEnable ? 1 : 0);
 
@@ -406,4 +502,424 @@ void CPerformanceConfig::SetReverbDiffusion (unsigned nValue)
 void CPerformanceConfig::SetReverbLevel (unsigned nValue)
 {
 	m_nReverbLevel = nValue;
+}
+// Pitch bender and portamento:
+void CPerformanceConfig::SetPitchBendRange (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nPitchBendRange[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetPitchBendRange (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nPitchBendRange[nTG];
+}
+
+
+void CPerformanceConfig::SetPitchBendStep (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nPitchBendStep[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetPitchBendStep (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nPitchBendStep[nTG];
+}
+
+
+void CPerformanceConfig::SetPortamentoMode (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nPortamentoMode[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetPortamentoMode (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nPortamentoMode[nTG];
+}
+
+
+void CPerformanceConfig::SetPortamentoGlissando (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nPortamentoGlissando[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetPortamentoGlissando (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nPortamentoGlissando[nTG];
+}
+
+
+void CPerformanceConfig::SetPortamentoTime (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nPortamentoTime[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetPortamentoTime (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nPortamentoTime[nTG];
+}
+
+void CPerformanceConfig::SetMonoMode (bool bValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_bMonoMode[nTG] = bValue;
+}
+
+bool CPerformanceConfig::GetMonoMode (unsigned nTG) const
+{
+	return m_bMonoMode[nTG];
+}
+
+void CPerformanceConfig::SetModulationWheelRange (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nModulationWheelRange[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetModulationWheelRange (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nModulationWheelRange[nTG];
+}
+
+void CPerformanceConfig::SetModulationWheelTarget (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nModulationWheelTarget[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetModulationWheelTarget (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nModulationWheelTarget[nTG];
+}
+
+void CPerformanceConfig::SetFootControlRange (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nFootControlRange[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetFootControlRange (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nFootControlRange[nTG];
+}
+
+void CPerformanceConfig::SetFootControlTarget (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nFootControlTarget[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetFootControlTarget (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nFootControlTarget[nTG];
+}
+
+void CPerformanceConfig::SetBreathControlRange (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nBreathControlRange[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetBreathControlRange (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nBreathControlRange[nTG];
+}
+
+void CPerformanceConfig::SetBreathControlTarget (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nBreathControlTarget[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetBreathControlTarget (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nBreathControlTarget[nTG];
+}
+
+void CPerformanceConfig::SetAftertouchRange (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nAftertouchRange[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetAftertouchRange (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nAftertouchRange[nTG];
+}
+
+void CPerformanceConfig::SetAftertouchTarget (unsigned nValue, unsigned nTG)
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nAftertouchTarget[nTG] = nValue;
+}
+
+unsigned CPerformanceConfig::GetAftertouchTarget (unsigned nTG) const
+{
+	assert (nTG < CConfig::ToneGenerators);
+	return m_nAftertouchTarget[nTG];
+}
+
+void CPerformanceConfig::SetVoiceDataToTxt (const uint8_t *pData, unsigned nTG)  
+{
+	assert (nTG < CConfig::ToneGenerators);
+	m_nVoiceDataTxt[nTG] = "";
+	char nDtoH[]="0123456789ABCDEF";
+	for (int i = 0; i < NUM_VOICE_PARAM; i++)
+	{
+	m_nVoiceDataTxt[nTG]  += nDtoH[(pData[i] & 0xF0)/16];
+	m_nVoiceDataTxt[nTG]  += nDtoH[pData[i] & 0x0F]  ;
+	if ( i < (NUM_VOICE_PARAM-1)  ) 
+    	{
+     	 m_nVoiceDataTxt[nTG] += " ";
+    	}
+	}
+}
+
+uint8_t *CPerformanceConfig::GetVoiceDataFromTxt (unsigned nTG) 
+{
+	assert (nTG < CConfig::ToneGenerators);
+	static uint8_t pData[NUM_VOICE_PARAM];
+	std::string nHtoD="0123456789ABCDEF";
+	 
+ 	for (int i=0; i<NUM_VOICE_PARAM * 3; i=i+3)
+	{
+  	pData[i/3] = ((nHtoD.find(toupper(m_nVoiceDataTxt[nTG][i]),0) * 16 + nHtoD.find(toupper(m_nVoiceDataTxt[nTG][i+1]),0))) & 0xFF ;
+	} 
+  
+	return pData;
+}
+
+bool CPerformanceConfig::VoiceDataFilled(unsigned nTG) 
+{
+	return (strcmp(m_nVoiceDataTxt[nTG].c_str(),"") != 0) ;
+}
+
+std::string CPerformanceConfig::GetPerformanceFileName(unsigned nID)
+{
+	return m_nPerformanceFileName[nID];
+}
+
+std::string CPerformanceConfig::GetPerformanceName(unsigned nID)
+{
+	if(nID == 0) // in order to assure retrocompatibility
+	{
+		return "Default";
+	}
+	else
+	{
+		return m_nPerformanceFileName[nID].substr(0,m_nPerformanceFileName[nID].length()-4).substr(7,14);
+	}
+}
+
+unsigned CPerformanceConfig::GetLastPerformance()
+{
+	return nLastPerformance;
+}
+
+unsigned CPerformanceConfig::GetActualPerformanceID()
+{
+	return nActualPerformance;
+}
+
+void CPerformanceConfig::SetActualPerformanceID(unsigned nID)
+{
+	nActualPerformance = nID;
+}
+
+bool CPerformanceConfig::GetInternalFolderOk()
+{
+	return nInternalFolderOk;
+}
+
+bool CPerformanceConfig::CreateNewPerformanceFile(void)
+{
+	std::string sPerformanceName = NewPerformanceName;
+	NewPerformanceName=""; 
+	nActualPerformance=nLastPerformance;
+	std::string nFileName;
+	std::string nPath;
+	std::string nIndex = "000000";
+	nIndex += std::to_string(++nLastFileIndex);
+	nIndex = nIndex.substr(nIndex.length()-6,6);
+	
+
+	nFileName = nIndex;
+	nFileName += "_";
+	if (strcmp(sPerformanceName.c_str(),"") == 0)
+	{
+		nFileName += "Perf";
+		nFileName += nIndex;
+	}		
+	else
+	{
+		nFileName +=sPerformanceName.substr(0,14);
+	}
+	nFileName += ".ini";
+	m_nPerformanceFileName[nLastPerformance]= nFileName;
+	
+	nPath = "SD:/" ;
+	nPath += PERFORMANCE_DIR;
+	nPath += "/";
+	nFileName = nPath + nFileName;
+	
+	FIL File;
+	FRESULT Result = f_open (&File, nFileName.c_str(), FA_WRITE | FA_CREATE_ALWAYS);
+	if (Result != FR_OK)
+	{
+		m_nPerformanceFileName[nLastPerformance]=nullptr;
+		return false;
+	}
+
+	if (f_close (&File) != FR_OK)
+	{
+		m_nPerformanceFileName[nLastPerformance]=nullptr;
+		return false;
+	}
+	
+	nLastPerformance++;
+	new (&m_Properties) CPropertiesFatFsFile(nFileName.c_str(), m_pFileSystem);
+	
+	return true;
+}
+
+bool CPerformanceConfig::ListPerformances()
+{
+	nInternalFolderOk=false;
+	nExternalFolderOk=false; // for future USB implementation
+	nLastPerformance=0;
+	nLastFileIndex=0;
+   	m_nPerformanceFileName[nLastPerformance++]="performance.ini"; // in order to assure retrocompatibility
+	
+	unsigned nPIndex;
+    DIR Directory;
+	FILINFO FileInfo;
+	FRESULT Result;
+	//Check if internal "performance" directory exists
+	Result = f_opendir (&Directory, "SD:/" PERFORMANCE_DIR);
+	if (Result == FR_OK)
+	{
+		nInternalFolderOk=true;		
+//		Result = f_closedir (&Directory);
+	}
+	else
+	{
+		// attenpt to create the folder
+		Result = f_mkdir("SD:/" PERFORMANCE_DIR);
+		nInternalFolderOk = (Result == FR_OK);
+	}
+	
+	if (nInternalFolderOk)
+	{
+	Result = f_findfirst (&Directory, &FileInfo, "SD:/" PERFORMANCE_DIR, "*.ini");
+		for (unsigned i = 0; Result == FR_OK && FileInfo.fname[0]; i++)
+		{
+			if (!(FileInfo.fattrib & (AM_HID | AM_SYS)))  
+			{
+				std::string FileName = FileInfo.fname;
+				size_t nLen = FileName.length();
+				if (   nLen > 8 && nLen <26	 && strcmp(FileName.substr(6,1).c_str(), "_")==0)
+				{			
+					nPIndex=stoi(FileName.substr(0,6));
+					if(nPIndex > nLastFileIndex)
+					{
+						nLastFileIndex=nPIndex;
+					}
+		
+					m_nPerformanceFileName[nLastPerformance++]= FileName;
+				}
+			}
+
+			Result = f_findnext (&Directory, &FileInfo);
+		}
+		// sort by performance number-name
+		if (nLastPerformance > 2)
+		{
+		sort (m_nPerformanceFileName+1, m_nPerformanceFileName + nLastPerformance); // default is always on first place. %%%%%%%%%%%%%%%%
+		}
+	}
+	
+	return nInternalFolderOk;
+}   
+    
+
+void CPerformanceConfig::SetNewPerformance (unsigned nID)
+{
+		nActualPerformance=nID;
+		std::string FileN = "";
+		if (nID != 0) // in order to assure retrocompatibility
+		{
+			FileN += PERFORMANCE_DIR;
+			FileN += "/";
+		}
+		FileN += m_nPerformanceFileName[nID];
+		new (&m_Properties) CPropertiesFatFsFile(FileN.c_str(), m_pFileSystem);
+		
+}
+
+std::string CPerformanceConfig::GetNewPerformanceDefaultName(void)
+{
+	std::string nIndex = "000000";
+	nIndex += std::to_string(nLastFileIndex+1);
+	nIndex = nIndex.substr(nIndex.length()-6,6);
+	return "Perf" + nIndex;
+}
+
+void CPerformanceConfig::SetNewPerformanceName(std::string nName)
+{
+	int  i = nName.length();
+	do
+	{
+		--i;
+	}
+	while (i>=0 && nName[i] == 32);
+	nName=nName.substr(0,i+1)  ;
+	
+	NewPerformanceName = nName;
+}
+
+bool CPerformanceConfig::DeletePerformance(unsigned nID)
+{
+	bool bOK = false;
+	if(nID == 0){return bOK;} // default (performance.ini at root directory) can't be deleted
+	DIR Directory;
+	FILINFO FileInfo;
+	std::string FileN = "SD:/";
+	FileN += PERFORMANCE_DIR;
+
+	
+	FRESULT Result = f_findfirst (&Directory, &FileInfo, FileN.c_str(), m_nPerformanceFileName[nID].c_str());
+	if (Result == FR_OK && FileInfo.fname[0])
+	{
+		FileN += "/";
+		FileN += m_nPerformanceFileName[nID];
+		Result=f_unlink (FileN.c_str());
+		if (Result == FR_OK)
+		{
+			SetNewPerformance(0);
+			nActualPerformance =0;
+			//nMenuSelectedPerformance=0;
+			m_nPerformanceFileName[nID]="ZZZZZZ";
+			sort (m_nPerformanceFileName+1, m_nPerformanceFileName + nLastPerformance); // test si va con -1 o no
+			--nLastPerformance;
+			m_nPerformanceFileName[nLastPerformance]=nullptr;
+			bOK=true;
+		}
+	}
+	return bOK;
 }
